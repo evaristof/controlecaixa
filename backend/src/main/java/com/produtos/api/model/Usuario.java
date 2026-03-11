@@ -2,6 +2,8 @@ package com.produtos.api.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,6 +13,10 @@ import jakarta.validation.constraints.NotBlank;
 @Entity
 @Table(name = "usuarios")
 public class Usuario {
+
+    public enum Perfil {
+        USUARIO, GERENTE
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,6 +31,10 @@ public class Usuario {
 
     @NotBlank(message = "A senha é obrigatória")
     private String senha;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Perfil perfil = Perfil.USUARIO;
 
     public Usuario() {}
 
@@ -45,4 +55,7 @@ public class Usuario {
 
     public String getSenha() { return senha; }
     public void setSenha(String senha) { this.senha = senha; }
+
+    public Perfil getPerfil() { return perfil; }
+    public void setPerfil(Perfil perfil) { this.perfil = perfil; }
 }

@@ -56,11 +56,11 @@ class ProdutoControllerTest {
     }
 
     @Test
-    void listarTodos_deveRetornar200ComListaVazia() throws Exception {
+    void listarTodos_deveRetornar200ComProdutosSeed() throws Exception {
         mockMvc.perform(get("/api/produtos")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(5))));
     }
 
     @Test
