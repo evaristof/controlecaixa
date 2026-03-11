@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Package, X, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, X, Check, LogOut, Lock, Mail, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -11,6 +11,12 @@ interface Produto {
   quantidade: number;
 }
 
+interface AuthUser {
+  token: string;
+  nome: string;
+  email: string;
+}
+
 const emptyProduto: Produto = {
   nome: '',
   descricao: '',
@@ -18,7 +24,174 @@ const emptyProduto: Produto = {
   quantidade: 0,
 };
 
-function App() {
+function getStoredUser(): AuthUser | null {
+  const stored = localStorage.getItem('auth_user');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
+// ==================== LOGIN PAGE ====================
+function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const url = isRegister
+        ? `${API_URL}/api/auth/register`
+        : `${API_URL}/api/auth/login`;
+
+      const body = isRegister
+        ? { nome, email, senha }
+        : { email, senha };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Erro ao autenticar');
+      }
+
+      const user: AuthUser = {
+        token: data.token,
+        nome: data.nome,
+        email: data.email,
+      };
+
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      onLogin(user);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Erro de conexão. Verifique se o servidor está rodando.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+            <Lock className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800">Controle Caixa</h1>
+          <p className="text-gray-500 mt-1">
+            {isRegister ? 'Crie sua conta' : 'Faça login para continuar'}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span className="text-sm">{error}</span>
+            <button onClick={() => setError(null)}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegister && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  required
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Seu nome"
+                />
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="seu@email.com"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Carregando...' : isRegister ? 'Cadastrar' : 'Entrar'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError(null);
+            }}
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            {isRegister ? 'Já tem conta? Faça login' : 'Não tem conta? Cadastre-se'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== PRODUCT PAGE ====================
+function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [form, setForm] = useState<Produto>({ ...emptyProduto });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -29,7 +202,13 @@ function App() {
   const fetchProdutos = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/produtos`);
+      const res = await fetch(`${API_URL}/api/produtos`, {
+        headers: authHeaders(user.token),
+      });
+      if (res.status === 401 || res.status === 403) {
+        onLogout();
+        return;
+      }
       if (!res.ok) throw new Error('Erro ao buscar produtos');
       const data = await res.json();
       setProdutos(data);
@@ -39,7 +218,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user.token, onLogout]);
 
   useEffect(() => {
     fetchProdutos();
@@ -55,9 +234,14 @@ function App() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(user.token),
         body: JSON.stringify(form),
       });
+
+      if (res.status === 401 || res.status === 403) {
+        onLogout();
+        return;
+      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -90,7 +274,14 @@ function App() {
   const handleDelete = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir este produto?')) return;
     try {
-      const res = await fetch(`${API_URL}/api/produtos/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/api/produtos/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(user.token),
+      });
+      if (res.status === 401 || res.status === 403) {
+        onLogout();
+        return;
+      }
       if (!res.ok) throw new Error('Erro ao excluir produto');
       setError(null);
       fetchProdutos();
@@ -116,20 +307,33 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-blue-600 text-white shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 py-6 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Package className="w-8 h-8" />
-            <h1 className="text-2xl font-bold">Cadastro de Produtos</h1>
+            <div>
+              <h1 className="text-xl font-bold">Cadastro de Produtos</h1>
+              <p className="text-blue-200 text-sm">Olá, {user.nome}</p>
+            </div>
           </div>
-          {!showForm && (
+          <div className="flex items-center gap-3">
+            {!showForm && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Novo Produto
+              </button>
+            )}
             <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              onClick={onLogout}
+              className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
+              title="Sair"
             >
-              <Plus className="w-5 h-5" />
-              Novo Produto
+              <LogOut className="w-5 h-5" />
+              Sair
             </button>
-          )}
+          </div>
         </div>
       </header>
 
@@ -310,6 +514,26 @@ function App() {
       </main>
     </div>
   );
+}
+
+// ==================== MAIN APP ====================
+function App() {
+  const [user, setUser] = useState<AuthUser | null>(getStoredUser);
+
+  const handleLogin = (authUser: AuthUser) => {
+    setUser(authUser);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_user');
+    setUser(null);
+  };
+
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return <ProductPage user={user} onLogout={handleLogout} />;
 }
 
 export default App;
