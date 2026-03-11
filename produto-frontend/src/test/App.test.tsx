@@ -266,4 +266,233 @@ describe('App - Tela de Produtos (autenticado)', () => {
       expect(screen.getByText('Nenhum produto cadastrado')).toBeInTheDocument();
     });
   });
+
+  it('deve mostrar botão de Exportar na tela de produtos', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Exportar/i })).toBeInTheDocument();
+  });
+
+  it('deve mostrar menu de exportação ao clicar no botão Exportar', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Exportar/i }));
+
+    expect(screen.getByText('Exportar Excel (.xlsx)')).toBeInTheDocument();
+    expect(screen.getByText('Exportar PDF')).toBeInTheDocument();
+  });
+
+  it('deve fazer download de Excel ao clicar na opção', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['excel-data'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      });
+
+    const mockCreateObjectURL = vi.fn(() => 'blob:fake-url');
+    const mockRevokeObjectURL = vi.fn();
+    window.URL.createObjectURL = mockCreateObjectURL;
+    window.URL.revokeObjectURL = mockRevokeObjectURL;
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Exportar/i }));
+    await user.click(screen.getByText('Exportar Excel (.xlsx)'));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/produtos/export/excel'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer fake-token',
+          }),
+        })
+      );
+    });
+  });
+
+  it('deve fazer download de PDF ao clicar na opção', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['pdf-data'], { type: 'application/pdf' }),
+      });
+
+    const mockCreateObjectURL = vi.fn(() => 'blob:fake-url');
+    const mockRevokeObjectURL = vi.fn();
+    window.URL.createObjectURL = mockCreateObjectURL;
+    window.URL.revokeObjectURL = mockRevokeObjectURL;
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Exportar/i }));
+    await user.click(screen.getByText('Exportar PDF'));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/produtos/export/pdf'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer fake-token',
+          }),
+        })
+      );
+    });
+  });
+
+  it('deve mostrar botão de Batch na tela de produtos', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Batch/i })).toBeInTheDocument();
+  });
+
+  it('deve abrir modal de batch ao clicar no botão', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Batch/i }));
+
+    expect(screen.getByText('Cadastro Batch')).toBeInTheDocument();
+    expect(screen.getByText(/CadastrarProduto;nome;descricao;preco;quantidade/)).toBeInTheDocument();
+    expect(screen.getByText(/AlterarNome;nomeProduto;novoNome/)).toBeInTheDocument();
+    expect(screen.getByText(/SomarQuantidade;nomeProduto;valor/)).toBeInTheDocument();
+    expect(screen.getByText(/SubtrairQuantidade;nomeProduto;valor/)).toBeInTheDocument();
+  });
+
+  it('deve fechar modal de batch ao clicar no X', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Batch/i }));
+    expect(screen.getByText('Cadastro Batch')).toBeInTheDocument();
+
+    // Find the close button inside the modal header
+    const modal = screen.getByText('Cadastro Batch').closest('div');
+    const closeButtons = modal!.parentElement!.querySelectorAll('button');
+    // The close button is the one next to the title
+    await user.click(closeButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Cadastro Batch')).not.toBeInTheDocument();
+    });
+  });
+
+  it('deve processar upload de arquivo batch e mostrar resultados', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([
+          { linha: 1, acao: 'CadastrarProduto', status: 'OK', mensagem: "Produto 'Mouse' cadastrado com sucesso" },
+          { linha: 2, acao: 'CadastrarProduto', status: 'ERRO', mensagem: 'Preço inválido: abc' },
+        ]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([{ id: 1, nome: 'Mouse', descricao: 'Mouse USB', preco: 29.90, quantidade: 50 }]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Batch/i }));
+
+    const file = new File(
+      ['CadastrarProduto;Mouse;Mouse USB;29.90;50\nCadastrarProduto;Invalido;Desc;abc;10'],
+      'batch.txt',
+      { type: 'text/plain' }
+    );
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(screen.getByText('Resultados:')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('1 de 2 ações executadas com sucesso.')).toBeInTheDocument();
+  });
 });
