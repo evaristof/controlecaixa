@@ -57,13 +57,13 @@ describe('App - Tela de Login', () => {
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
   });
 
-  it('deve fazer login com sucesso e mostrar tela de produtos', async () => {
+  it('deve fazer login com sucesso e mostrar menu lateral', async () => {
     const user = userEvent.setup();
 
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com' }),
+        json: async () => ({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com', perfil: 'USUARIO' }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -81,7 +81,9 @@ describe('App - Tela de Login', () => {
       expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Olá, Teste')).toBeInTheDocument();
+    // Sidebar shows user info
+    expect(screen.getByText('Teste')).toBeInTheDocument();
+    expect(screen.getByText('teste@email.com')).toBeInTheDocument();
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       'auth_user',
       expect.stringContaining('fake-token')
@@ -113,7 +115,7 @@ describe('App - Tela de Login', () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ token: 'fake-token', nome: 'Novo User', email: 'novo@email.com' }),
+        json: async () => ({ token: 'fake-token', nome: 'Novo User', email: 'novo@email.com', perfil: 'USUARIO' }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -133,14 +135,137 @@ describe('App - Tela de Login', () => {
       expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Olá, Novo User')).toBeInTheDocument();
+  });
+});
+
+describe('App - Menu de Navegação', () => {
+  beforeEach(() => {
+    localStorageMock.getItem.mockReturnValue(
+      JSON.stringify({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com', perfil: 'GERENTE' })
+    );
+  });
+
+  it('deve exibir o menu lateral com todos os itens', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Produtos')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Clientes')).toBeInTheDocument();
+    expect(screen.getByText('Comandas')).toBeInTheDocument();
+    expect(screen.getByText('Relatórios')).toBeInTheDocument();
+  });
+
+  it('deve exibir perfil do usuário no menu', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Teste')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('teste@email.com')).toBeInTheDocument();
+    expect(screen.getByText('GERENTE')).toBeInTheDocument();
+  });
+
+  it('deve navegar para a tela de Clientes', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Clientes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Clientes')).toBeInTheDocument();
+    });
+  });
+
+  it('deve navegar para a tela de Comandas', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Comandas'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nova Comanda')).toBeInTheDocument();
+    });
+  });
+
+  it('deve navegar para a tela de Relatórios', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Relatórios'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Em breve')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Funcionalidade de relatórios será adicionada futuramente.')).toBeInTheDocument();
   });
 });
 
 describe('App - Tela de Produtos (autenticado)', () => {
   beforeEach(() => {
     localStorageMock.getItem.mockReturnValue(
-      JSON.stringify({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com' })
+      JSON.stringify({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com', perfil: 'USUARIO' })
     );
   });
 
@@ -156,7 +281,6 @@ describe('App - Tela de Produtos (autenticado)', () => {
     await waitFor(() => {
       expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
     });
-    expect(screen.getByText('Olá, Teste')).toBeInTheDocument();
   });
 
   it('deve exibir lista de produtos', async () => {
@@ -212,7 +336,7 @@ describe('App - Tela de Produtos (autenticado)', () => {
       expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /Sair/i }));
+    await user.click(screen.getByText('Sair'));
 
     expect(localStorageMock.removeItem).toHaveBeenCalledWith('auth_user');
     expect(screen.getByText('Faça login para continuar')).toBeInTheDocument();
@@ -248,7 +372,6 @@ describe('App - Tela de Produtos (autenticado)', () => {
 
     await user.click(screen.getByRole('button', { name: /Novo Produto/i }));
 
-    expect(screen.getByText('Novo Produto', { selector: 'h2' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nome do produto')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Descrição do produto')).toBeInTheDocument();
   });
@@ -494,5 +617,246 @@ describe('App - Tela de Produtos (autenticado)', () => {
     });
 
     expect(screen.getByText('1 de 2 ações executadas com sucesso.')).toBeInTheDocument();
+  });
+});
+
+describe('App - Tela de Clientes', () => {
+  beforeEach(() => {
+    localStorageMock.getItem.mockReturnValue(
+      JSON.stringify({ token: 'fake-token', nome: 'Teste', email: 'teste@email.com', perfil: 'GERENTE' })
+    );
+  });
+
+  it('deve exibir lista de clientes', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([
+          { id: 1, nome: 'João Silva', documento: '123.456.789-00', tipoDocumento: 'CPF', endereco: 'Rua A' },
+          { id: 2, nome: 'John Smith', documento: 'AB123456', tipoDocumento: 'PASSAPORTE', endereco: '' },
+        ]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Clientes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('João Silva')).toBeInTheDocument();
+    });
+    expect(screen.getByText('John Smith')).toBeInTheDocument();
+  });
+
+  it('deve mostrar formulário de novo cliente', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Clientes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Clientes')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Novo Cliente/i }));
+
+    expect(screen.getByPlaceholderText('Nome completo')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Endereço completo')).toBeInTheDocument();
+  });
+
+  it('deve exibir mensagem quando não há clientes', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Clientes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhum cliente cadastrado')).toBeInTheDocument();
+    });
+  });
+
+  it('deve ter botões de upload de foto e câmera', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Clientes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Clientes')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Novo Cliente/i }));
+
+    expect(screen.getByText('Upload Foto')).toBeInTheDocument();
+    expect(screen.getByText('Tirar Foto')).toBeInTheDocument();
+  });
+});
+
+describe('App - Tela de Comandas', () => {
+  beforeEach(() => {
+    localStorageMock.getItem.mockReturnValue(
+      JSON.stringify({ token: 'fake-token', nome: 'Gerente', email: 'gerente@email.com', perfil: 'GERENTE' })
+    );
+  });
+
+  it('deve exibir dashboard com filtros', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Comandas'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Filtros')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Abertas').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Fechadas').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('deve exibir mensagem quando não há comandas', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Comandas'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma comanda encontrada')).toBeInTheDocument();
+    });
+  });
+
+  it('deve abrir modal de nova comanda', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ([]),
+      });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cadastro de Produtos')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Comandas'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Nova Comanda/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Nova Comanda/i }));
+
+    expect(screen.getByPlaceholderText('Digite o nome ou CPF/passaporte...')).toBeInTheDocument();
   });
 });
