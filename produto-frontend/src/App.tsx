@@ -1241,6 +1241,18 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
     } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao reabrir'); }
   };
 
+  const deletarComanda = async (id: number) => {
+    if (!confirm('Deseja excluir esta comanda? Esta ação não pode ser desfeita.')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/comandas/${id}`, { method: 'DELETE', headers: authHeaders(user.token) });
+      if (res.status === 403) { const data = await res.json().catch(() => null); setError(data?.message || 'Sem permissão'); return; }
+      if (!res.ok) { const data = await res.json().catch(() => null); throw new Error(data?.message || 'Erro'); }
+      if (selectedComanda?.id === id) setSelectedComanda(null);
+      fetchComandas();
+      fetchProdutos(); // Refresh stock info
+    } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao excluir comanda'); }
+  };
+
   const openComandaDetail = async (id: number) => {
     try {
       const res = await fetch(`${API_URL}/api/comandas/${id}`, { headers: authHeaders(user.token) });
@@ -1362,6 +1374,9 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                   )}
                   <div className="flex gap-2">
                     <button onClick={() => openComandaDetail(cmd.id!)} className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700"><Eye className="w-3.5 h-3.5" />Gerenciar</button>
+                    {isGerente && (
+                      <button onClick={() => deletarComanda(cmd.id!)} className="flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-700"><Trash2 className="w-3.5 h-3.5" />Excluir</button>
+                    )}
                     {cmd.status === 'ABERTA' && (
                       <button onClick={() => fazerCheckout(cmd.id!)} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"><Check className="w-3.5 h-3.5" />Checkout</button>
                     )}

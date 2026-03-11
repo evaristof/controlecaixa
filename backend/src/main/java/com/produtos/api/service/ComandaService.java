@@ -166,16 +166,13 @@ public class ComandaService {
     @Transactional
     public Optional<Comanda> reabrir(Long comandaId) {
         return comandaRepository.findById(comandaId).map(comanda -> {
-            // Re-reserve stock for all items when reopening
+            // Restore stock first (undo checkout deduction), then re-reserve
             for (ComandaItem item : comanda.getItens()) {
                 Produto produto = item.getProduto();
-                int disponivel = produto.getQuantidadeDisponivel();
-                if (item.getQuantidade() > disponivel) {
-                    throw new IllegalStateException("Estoque insuficiente para reabrir. Produto: " + produto.getNome() + ", Disponível: " + disponivel);
-                }
-                produto.setQuantidadeReservada(produto.getQuantidadeReservada() + item.getQuantidade());
                 // Restore stock that was deducted at checkout
                 produto.setQuantidade(produto.getQuantidade() + item.getQuantidade());
+                // Re-reserve stock for the reopened comanda
+                produto.setQuantidadeReservada(produto.getQuantidadeReservada() + item.getQuantidade());
                 produtoRepository.save(produto);
             }
 
@@ -185,8 +182,20 @@ public class ComandaService {
         });
     }
 
+    @Transactional
     public boolean deletar(Long id) {
-        if (comandaRepository.existsById(id)) {
+        Optional<Comanda> opt = comandaRepository.findById(id);
+        if (opt.isPresent()) {
+            Comanda comanda = opt.get();
+            // Restore reserved stock for items in open comandas
+            if (comanda.getStatus() == Comanda.Status.ABERTA) {
+                for (ComandaItem item : comanda.getItens()) {
+                    Produto produto = item.getProduto();
+                    int reserved = produto.getQuantidadeReservada() - item.getQuantidade();
+                    produto.setQuantidadeReservada(Math.max(0, reserved));
+                    produtoRepository.save(produto);
+                }
+            }
             comandaRepository.deleteById(id);
             return true;
         }
