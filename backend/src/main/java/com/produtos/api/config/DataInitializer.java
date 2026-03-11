@@ -2,13 +2,13 @@ package com.produtos.api.config;
 
 import com.produtos.api.model.Cliente;
 import com.produtos.api.model.Comanda;
-import com.produtos.api.model.ComandaItem;
 import com.produtos.api.model.Produto;
 import com.produtos.api.model.Usuario;
 import com.produtos.api.repository.ClienteRepository;
 import com.produtos.api.repository.ComandaRepository;
 import com.produtos.api.repository.ProdutoRepository;
 import com.produtos.api.repository.UsuarioRepository;
+import com.produtos.api.service.ComandaService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +25,7 @@ public class DataInitializer {
                                ProdutoRepository produtoRepository,
                                ClienteRepository clienteRepository,
                                ComandaRepository comandaRepository,
+                               ComandaService comandaService,
                                PasswordEncoder passwordEncoder) {
         return args -> {
             // === Usuarios ===
@@ -119,58 +120,34 @@ public class DataInitializer {
                 System.out.println("3 clientes de teste criados");
             }
 
-            // === Comandas ===
+            // === Comandas (using ComandaService for proper stock reservation) ===
             if (comandaRepository.count() == 0 && evaristo != null && joao != null && notebook != null) {
-                // Comanda aberta para João
+                // Comanda aberta para João - uses service to reserve stock
                 Comanda comanda1 = new Comanda();
                 comanda1.setCliente(joao);
                 comanda1.setUsuario(evaristo);
-                comanda1.setDataAbertura(LocalDateTime.now().minusHours(2));
+                comanda1 = comandaService.criar(comanda1);
 
-                ComandaItem item1 = new ComandaItem();
-                item1.setComanda(comanda1);
-                item1.setProduto(notebook);
-                item1.setQuantidade(1);
-                item1.setPrecoUnitario(notebook.getPreco());
-                comanda1.getItens().add(item1);
-
+                // Add items via service (reserves stock automatically)
+                comandaService.adicionarItem(comanda1.getId(), notebook.getId(), 1);
                 if (mouse != null) {
-                    ComandaItem item2 = new ComandaItem();
-                    item2.setComanda(comanda1);
-                    item2.setProduto(mouse);
-                    item2.setQuantidade(2);
-                    item2.setPrecoUnitario(mouse.getPreco());
-                    comanda1.getItens().add(item2);
+                    comandaService.adicionarItem(comanda1.getId(), mouse.getId(), 2);
                 }
 
-                comandaRepository.save(comanda1);
-
-                // Comanda fechada para Ana
+                // Comanda fechada para Ana - uses service for checkout (deducts stock, clears reservations)
                 if (ana != null && vendedor != null && teclado != null) {
                     Comanda comanda2 = new Comanda();
                     comanda2.setCliente(ana);
                     comanda2.setUsuario(vendedor);
-                    comanda2.setDataAbertura(LocalDateTime.now().minusDays(1));
-                    comanda2.setDataCheckout(LocalDateTime.now().minusDays(1).plusHours(1));
-                    comanda2.setStatus(Comanda.Status.FECHADA);
+                    comanda2 = comandaService.criar(comanda2);
 
-                    ComandaItem item3 = new ComandaItem();
-                    item3.setComanda(comanda2);
-                    item3.setProduto(teclado);
-                    item3.setQuantidade(1);
-                    item3.setPrecoUnitario(teclado.getPreco());
-                    comanda2.getItens().add(item3);
-
+                    comandaService.adicionarItem(comanda2.getId(), teclado.getId(), 1);
                     if (fone != null) {
-                        ComandaItem item4 = new ComandaItem();
-                        item4.setComanda(comanda2);
-                        item4.setProduto(fone);
-                        item4.setQuantidade(1);
-                        item4.setPrecoUnitario(fone.getPreco());
-                        comanda2.getItens().add(item4);
+                        comandaService.adicionarItem(comanda2.getId(), fone.getId(), 1);
                     }
 
-                    comandaRepository.save(comanda2);
+                    // Checkout via service (deducts stock and clears reservations)
+                    comandaService.checkout(comanda2.getId());
                 }
 
                 System.out.println("2 comandas de teste criadas (1 aberta, 1 fechada)");
