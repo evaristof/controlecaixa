@@ -4,6 +4,7 @@ import com.produtos.api.model.Cliente;
 import com.produtos.api.repository.ClienteRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +36,7 @@ public class ClienteService {
         List<Cliente> nameResults = clienteRepository.findByNomeContainingIgnoreCase(termo);
         List<Cliente> docResults = clienteRepository.findByDocumentoLimpoContaining(termoLimpo);
         // Merge results without duplicates
-        java.util.ArrayList<Cliente> results = new java.util.ArrayList<>(nameResults);
+        ArrayList<Cliente> results = new ArrayList<>(nameResults);
         for (Cliente c : docResults) {
             if (results.stream().noneMatch(r -> r.getId().equals(c.getId()))) {
                 results.add(c);
