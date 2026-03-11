@@ -31,14 +31,14 @@ public class ClienteService {
     public List<Cliente> buscar(String termo) {
         // Strip separators (dots, dashes, slashes) for document search
         String termoLimpo = termo.replaceAll("[.\\-/]", "");
-        List<Cliente> results = clienteRepository.findByNomeContainingIgnoreCaseOrDocumentoContaining(termo, termo);
-        // Also search with cleaned term if different
-        if (!termoLimpo.equals(termo)) {
-            List<Cliente> cleanResults = clienteRepository.findByDocumentoLimpoContaining(termoLimpo);
-            for (Cliente c : cleanResults) {
-                if (results.stream().noneMatch(r -> r.getId().equals(c.getId()))) {
-                    results.add(c);
-                }
+        // Always search by name and by cleaned document (strips separators from stored docs too)
+        List<Cliente> nameResults = clienteRepository.findByNomeContainingIgnoreCase(termo);
+        List<Cliente> docResults = clienteRepository.findByDocumentoLimpoContaining(termoLimpo);
+        // Merge results without duplicates
+        java.util.ArrayList<Cliente> results = new java.util.ArrayList<>(nameResults);
+        for (Cliente c : docResults) {
+            if (results.stream().noneMatch(r -> r.getId().equals(c.getId()))) {
+                results.add(c);
             }
         }
         return results;

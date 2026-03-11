@@ -91,14 +91,58 @@ class ClienteServiceTest {
     }
 
     @Test
-    void buscar_deveRetornarClientesPorTermo() {
-        when(clienteRepository.findByNomeContainingIgnoreCaseOrDocumentoContaining("João", "João"))
+    void buscar_deveRetornarClientesPorNome() {
+        when(clienteRepository.findByNomeContainingIgnoreCase("João"))
                 .thenReturn(List.of(cliente));
+        when(clienteRepository.findByDocumentoLimpoContaining("João"))
+                .thenReturn(List.of());
 
         List<Cliente> resultado = service.buscar("João");
 
         assertEquals(1, resultado.size());
         assertEquals("João Silva", resultado.get(0).getNome());
+    }
+
+    @Test
+    void buscar_deveRetornarClientePorCpfParcialSemSeparadores() {
+        // Bug fix: searching "123456" must find client with CPF "123.456.789-00"
+        when(clienteRepository.findByNomeContainingIgnoreCase("123456"))
+                .thenReturn(List.of());
+        when(clienteRepository.findByDocumentoLimpoContaining("123456"))
+                .thenReturn(List.of(cliente));
+
+        List<Cliente> resultado = service.buscar("123456");
+
+        assertEquals(1, resultado.size());
+        assertEquals("João Silva", resultado.get(0).getNome());
+        verify(clienteRepository).findByDocumentoLimpoContaining("123456");
+    }
+
+    @Test
+    void buscar_deveRetornarClientePorCpfComSeparadores() {
+        // Searching "123.456" should also work (separators stripped to "123456")
+        when(clienteRepository.findByNomeContainingIgnoreCase("123.456"))
+                .thenReturn(List.of());
+        when(clienteRepository.findByDocumentoLimpoContaining("123456"))
+                .thenReturn(List.of(cliente));
+
+        List<Cliente> resultado = service.buscar("123.456");
+
+        assertEquals(1, resultado.size());
+        assertEquals("João Silva", resultado.get(0).getNome());
+    }
+
+    @Test
+    void buscar_deveMesclarResultadosSemDuplicatas() {
+        // Client found by both name and document should appear only once
+        when(clienteRepository.findByNomeContainingIgnoreCase("João"))
+                .thenReturn(List.of(cliente));
+        when(clienteRepository.findByDocumentoLimpoContaining("João"))
+                .thenReturn(List.of(cliente));
+
+        List<Cliente> resultado = service.buscar("João");
+
+        assertEquals(1, resultado.size());
     }
 
     @Test
@@ -200,6 +244,19 @@ class ClienteServiceTest {
         assertTrue(resultado.isPresent());
         // Foto should remain since update only replaces if not null
         verify(clienteRepository).save(any(Cliente.class));
+    }
+
+    @Test
+    void buscar_deveRetornarClientePorCpfCompleto() {
+        when(clienteRepository.findByNomeContainingIgnoreCase("12345678900"))
+                .thenReturn(List.of());
+        when(clienteRepository.findByDocumentoLimpoContaining("12345678900"))
+                .thenReturn(List.of(cliente));
+
+        List<Cliente> resultado = service.buscar("12345678900");
+
+        assertEquals(1, resultado.size());
+        assertEquals("João Silva", resultado.get(0).getNome());
     }
 
     @Test
