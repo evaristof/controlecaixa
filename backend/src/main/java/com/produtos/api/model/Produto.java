@@ -8,6 +8,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
@@ -29,7 +30,7 @@ public class Produto {
     private BigDecimal preco;
 
     @NotNull(message = "A quantidade é obrigatória")
-    @Positive(message = "A quantidade deve ser positiva")
+    @PositiveOrZero(message = "A quantidade deve ser zero ou positiva")
     private Integer quantidade;
 
     private Integer quantidadeReservada = 0;

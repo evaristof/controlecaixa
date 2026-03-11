@@ -183,6 +183,30 @@ class ProdutoControllerTest {
     }
 
     @Test
+    void criar_deveRetornar201ComQuantidadeZero() throws Exception {
+        Produto produto = criarProduto("Produto Esgotado", "Sem estoque", new BigDecimal("50.00"), 0);
+
+        mockMvc.perform(post("/api/produtos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(produto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nome", is("Produto Esgotado")))
+                .andExpect(jsonPath("$.quantidade", is(0)));
+    }
+
+    @Test
+    void criar_deveRetornar400ComQuantidadeNegativa() throws Exception {
+        Produto produto = criarProduto("Produto Invalido", "Desc", new BigDecimal("50.00"), -1);
+
+        mockMvc.perform(post("/api/produtos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(produto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void listarTodos_deveRetornar403SemToken() throws Exception {
         mockMvc.perform(get("/api/produtos"))
                 .andExpect(status().isForbidden());
