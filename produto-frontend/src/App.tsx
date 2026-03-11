@@ -8,8 +8,6 @@ import { ClientPage } from './components/ClientPage';
 import { ComandaPage } from './components/ComandaPage';
 import { RelatoriosPage } from './components/RelatoriosPage';
 
-import './App.css';
-
 function App() {
   const [user, setUser] = useState<AuthUser | null>(getStoredUser);
   const [currentPage, setCurrentPage] = useState<Page>('produtos');
