@@ -10,6 +10,7 @@ interface Produto {
   descricao: string;
   preco: number;
   quantidade: number;
+  quantidadeReservada?: number;
 }
 
 interface AuthUser {
@@ -1100,6 +1101,8 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
   const [addProdutoId, setAddProdutoId] = useState<number | string>('');
   const [addQtd, setAddQtd] = useState(1);
   const [expandedComanda, setExpandedComanda] = useState<number | null>(null);
+  const [produtoSearch, setProdutoSearch] = useState('');
+  const [showProdutoDropdown, setShowProdutoDropdown] = useState(false);
 
   const fetchComandas = useCallback(async () => {
     setLoading(true);
@@ -1136,10 +1139,18 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
     setClienteSearch(termo);
     if (termo.length < 2) { setClienteResults([]); return; }
     try {
+      // Send term as-is; backend now strips separators for document search
       const res = await fetch(`${API_URL}/api/clientes/buscar?termo=${encodeURIComponent(termo)}`, { headers: authHeaders(user.token) });
       if (res.ok) setClienteResults(await res.json());
     } catch { /* ignore */ }
   };
+
+  const filteredProdutos = produtos.filter(p =>
+    p.nome.toLowerCase().includes(produtoSearch.toLowerCase()) ||
+    (p.descricao && p.descricao.toLowerCase().includes(produtoSearch.toLowerCase()))
+  );
+
+  const selectedProduto = produtos.find(p => p.id === Number(addProdutoId));
 
   const criarComanda = async () => {
     if (!selectedCliente?.id) return;
@@ -1169,8 +1180,9 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
       if (!res.ok) { const data = await res.json().catch(() => null); throw new Error(data?.message || 'Erro'); }
       const updated: ComandaData = await res.json();
       setSelectedComanda(updated);
-      setAddProdutoId(''); setAddQtd(1);
+      setAddProdutoId(''); setAddQtd(1); setProdutoSearch('');
       fetchComandas();
+      fetchProdutos(); // Refresh stock info
     } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao adicionar item'); }
   };
 
@@ -1185,6 +1197,7 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
       const updated: ComandaData = await res.json();
       setSelectedComanda(updated);
       fetchComandas();
+      fetchProdutos(); // Refresh stock info
     } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao remover item'); }
   };
 
@@ -1196,6 +1209,7 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
       const updated: ComandaData = await res.json();
       if (selectedComanda?.id === id) setSelectedComanda(updated);
       fetchComandas();
+      fetchProdutos(); // Refresh stock info
     } catch (err) { setError(err instanceof Error ? err.message : 'Erro no checkout'); }
   };
 
@@ -1203,10 +1217,11 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
     try {
       const res = await fetch(`${API_URL}/api/comandas/${id}/reabrir`, { method: 'POST', headers: authHeaders(user.token) });
       if (res.status === 403) { const data = await res.json().catch(() => null); setError(data?.message || 'Sem permissão'); return; }
-      if (!res.ok) throw new Error('Erro');
+      if (!res.ok) { const data = await res.json().catch(() => null); throw new Error(data?.message || 'Erro'); }
       const updated: ComandaData = await res.json();
       if (selectedComanda?.id === id) setSelectedComanda(updated);
       fetchComandas();
+      fetchProdutos(); // Refresh stock info
     } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao reabrir'); }
   };
 
@@ -1405,17 +1420,51 @@ function ComandaPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                 <div className="mb-4 p-4 bg-blue-50 rounded-lg">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Adicionar Produto</h4>
                   <div className="flex gap-2">
-                    <select value={addProdutoId} onChange={(e) => setAddProdutoId(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">Selecione um produto...</option>
-                      {produtos.map(p => (
-                        <option key={p.id} value={p.id}>{p.nome} - {formatCurrencyValue(p.preco)} (estoque: {p.quantidade})</option>
-                      ))}
-                    </select>
-                    <input type="number" min="1" value={addQtd} onChange={(e) => setAddQtd(parseInt(e.target.value) || 1)} className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={produtoSearch}
+                        onChange={(e) => { setProdutoSearch(e.target.value); setShowProdutoDropdown(true); if (!e.target.value) setAddProdutoId(''); }}
+                        onFocus={() => setShowProdutoDropdown(true)}
+                        placeholder="Digite para buscar produto..."
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {showProdutoDropdown && produtoSearch && filteredProdutos.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredProdutos.map(p => {
+                            const disponivel = p.quantidade - (p.quantidadeReservada || 0);
+                            return (
+                              <button
+                                key={p.id}
+                                onClick={() => { setAddProdutoId(p.id); setProdutoSearch(p.nome); setShowProdutoDropdown(false); }}
+                                disabled={disponivel <= 0}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex justify-between items-center ${disponivel <= 0 ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''} ${Number(addProdutoId) === p.id ? 'bg-blue-100' : ''}`}
+                              >
+                                <span>{p.nome} - {formatCurrencyValue(p.preco)}</span>
+                                <span className={`text-xs font-medium ${disponivel <= 0 ? 'text-red-500' : disponivel <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                  {disponivel <= 0 ? 'Sem estoque' : `Disp: ${disponivel}`}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {showProdutoDropdown && produtoSearch && filteredProdutos.length === 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm text-gray-500">
+                          Nenhum produto encontrado
+                        </div>
+                      )}
+                    </div>
+                    <input type="number" min="1" max={selectedProduto ? (selectedProduto.quantidade - (selectedProduto.quantidadeReservada || 0)) : undefined} value={addQtd} onChange={(e) => setAddQtd(parseInt(e.target.value) || 1)} className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <button onClick={adicionarItem} disabled={!addProdutoId} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
+                  {selectedProduto && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Estoque disponível: {selectedProduto.quantidade - (selectedProduto.quantidadeReservada || 0)} unidades
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -65,6 +65,16 @@ public class ComandaService {
             Produto produto = produtoRepository.findById(produtoId)
                     .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
 
+            // Validate stock availability
+            int disponivel = produto.getQuantidadeDisponivel();
+            if (quantidade > disponivel) {
+                throw new IllegalStateException("Estoque insuficiente. Disponível: " + disponivel + ", Solicitado: " + quantidade);
+            }
+
+            // Reserve stock
+            produto.setQuantidadeReservada(produto.getQuantidadeReservada() + quantidade);
+            produtoRepository.save(produto);
+
             // Check if item already exists in comanda
             Optional<ComandaItem> existingItem = comanda.getItens().stream()
                     .filter(item -> item.getProduto().getId().equals(produtoId))
@@ -92,6 +102,19 @@ public class ComandaService {
                     && usuario.getPerfil() != Usuario.Perfil.GERENTE) {
                 throw new IllegalStateException("Apenas gerentes podem alterar comandas fechadas");
             }
+
+            // Restore reserved stock for removed item
+            comanda.getItens().stream()
+                    .filter(item -> item.getId().equals(itemId))
+                    .findFirst()
+                    .ifPresent(item -> {
+                        if (comanda.getStatus() == Comanda.Status.ABERTA) {
+                            Produto produto = item.getProduto();
+                            int reserved = produto.getQuantidadeReservada() - item.getQuantidade();
+                            produto.setQuantidadeReservada(Math.max(0, reserved));
+                            produtoRepository.save(produto);
+                        }
+                    });
 
             comanda.getItens().removeIf(item -> item.getId().equals(itemId));
             return comandaRepository.save(comanda);
@@ -121,6 +144,19 @@ public class ComandaService {
             if (comanda.getStatus() == Comanda.Status.FECHADA) {
                 throw new IllegalStateException("Comanda já está fechada");
             }
+
+            // Deduct stock and clear reservations for all items
+            for (ComandaItem item : comanda.getItens()) {
+                Produto produto = item.getProduto();
+                // Remove reservation
+                int reserved = produto.getQuantidadeReservada() - item.getQuantidade();
+                produto.setQuantidadeReservada(Math.max(0, reserved));
+                // Deduct from actual stock
+                int novaQuantidade = produto.getQuantidade() - item.getQuantidade();
+                produto.setQuantidade(Math.max(0, novaQuantidade));
+                produtoRepository.save(produto);
+            }
+
             comanda.setStatus(Comanda.Status.FECHADA);
             comanda.setDataCheckout(LocalDateTime.now());
             return comandaRepository.save(comanda);
@@ -130,6 +166,19 @@ public class ComandaService {
     @Transactional
     public Optional<Comanda> reabrir(Long comandaId) {
         return comandaRepository.findById(comandaId).map(comanda -> {
+            // Re-reserve stock for all items when reopening
+            for (ComandaItem item : comanda.getItens()) {
+                Produto produto = item.getProduto();
+                int disponivel = produto.getQuantidadeDisponivel();
+                if (item.getQuantidade() > disponivel) {
+                    throw new IllegalStateException("Estoque insuficiente para reabrir. Produto: " + produto.getNome() + ", Disponível: " + disponivel);
+                }
+                produto.setQuantidadeReservada(produto.getQuantidadeReservada() + item.getQuantidade());
+                // Restore stock that was deducted at checkout
+                produto.setQuantidade(produto.getQuantidade() + item.getQuantidade());
+                produtoRepository.save(produto);
+            }
+
             comanda.setStatus(Comanda.Status.ABERTA);
             comanda.setDataCheckout(null);
             return comandaRepository.save(comanda);

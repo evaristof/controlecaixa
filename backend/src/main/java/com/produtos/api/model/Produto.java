@@ -32,6 +32,8 @@ public class Produto {
     @Positive(message = "A quantidade deve ser positiva")
     private Integer quantidade;
 
+    private Integer quantidadeReservada = 0;
+
     public Produto() {}
 
     public Produto(String nome, String descricao, BigDecimal preco, Integer quantidade) {
@@ -39,6 +41,7 @@ public class Produto {
         this.descricao = descricao;
         this.preco = preco;
         this.quantidade = quantidade;
+        this.quantidadeReservada = 0;
     }
 
     public Long getId() { return id; }
@@ -55,4 +58,9 @@ public class Produto {
 
     public Integer getQuantidade() { return quantidade; }
     public void setQuantidade(Integer quantidade) { this.quantidade = quantidade; }
+
+    public Integer getQuantidadeReservada() { return quantidadeReservada != null ? quantidadeReservada : 0; }
+    public void setQuantidadeReservada(Integer quantidadeReservada) { this.quantidadeReservada = quantidadeReservada; }
+
+    public Integer getQuantidadeDisponivel() { return (quantidade != null ? quantidade : 0) - getQuantidadeReservada(); }
 }
