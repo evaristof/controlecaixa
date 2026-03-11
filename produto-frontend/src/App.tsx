@@ -599,6 +599,12 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                     <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Qtd.
                     </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Reservada
+                    </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Disponível
+                    </th>
                     <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Ações
                     </th>
@@ -619,6 +625,16 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900 text-right">
                         {produto.quantidade}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right">
+                        <span className={`font-medium ${(produto.quantidadeReservada || 0) > 0 ? 'text-yellow-600' : 'text-gray-400'}`}>
+                          {produto.quantidadeReservada || 0}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right">
+                        <span className={`font-medium ${(produto.quantidade - (produto.quantidadeReservada || 0)) <= 0 ? 'text-red-600' : (produto.quantidade - (produto.quantidadeReservada || 0)) <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                          {produto.quantidade - (produto.quantidadeReservada || 0)}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
