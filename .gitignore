@@ -18,13 +18,16 @@ target/
 *.war
 *.ear
 
-# IDE
+# IDE / Eclipse / IntelliJ
 .idea/
 *.iml
 .vscode/
 .classpath
 .project
 .settings/
+.metadata/
+.factorypath
+bin/
 *.suo
 *.ntvs*
 *.njsproj
