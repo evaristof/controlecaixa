@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Pencil, Trash2, Package, X, Check, Download, Upload, FileSpreadsheet, FileText } from 'lucide-react';
 import type { AuthUser, Produto, BatchResult } from '../types';
-import { API_URL, authHeaders, emptyProduto } from '../utils';
+import { emptyProduto } from '../types';
+import { API_URL, authHeaders } from '../utils';
 
 export function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const [produtos, setProdutos] = useState<Produto[]>([]);
