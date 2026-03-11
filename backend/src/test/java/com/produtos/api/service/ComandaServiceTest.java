@@ -346,36 +346,76 @@ class ComandaServiceTest {
     }
 
     @Test
-    void reabrir_deveLancarExcecaoQuandoEstoqueInsuficiente() {
+    void reabrir_deveReabrirMesmoComEstoqueBaixo() {
+        // After checkout, stock was deducted. Even if other comandas consumed remaining stock,
+        // reopen should always work because it restores the stock first.
         comanda.setStatus(Comanda.Status.FECHADA);
         comanda.setDataCheckout(LocalDateTime.now());
         ComandaItem item = new ComandaItem();
         item.setId(1L);
         item.setProduto(produto);
-        item.setQuantidade(15); // More than available
-        produto.setQuantidade(5);
+        item.setQuantidade(5);
+        produto.setQuantidade(0); // All stock was consumed
+        produto.setQuantidadeReservada(0);
+        comanda.getItens().add(item);
+
+        when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
+        when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
+
+        Optional<Comanda> resultado = service.reabrir(1L);
+
+        assertTrue(resultado.isPresent());
+        assertEquals(Comanda.Status.ABERTA, comanda.getStatus());
+        assertEquals(5, produto.getQuantidade()); // Stock restored: 0 + 5
+        assertEquals(5, produto.getQuantidadeReservada()); // Re-reserved
+    }
+
+    @Test
+    void deletar_deveRetornarTrueERestaurarReservaQuandoComandaAberta() {
+        ComandaItem item = new ComandaItem();
+        item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(3);
         produto.setQuantidadeReservada(3);
         comanda.getItens().add(item);
 
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
-
-        assertThrows(IllegalStateException.class, () -> service.reabrir(1L));
-    }
-
-    @Test
-    void deletar_deveRetornarTrueQuandoComandaExiste() {
-        when(comandaRepository.existsById(1L)).thenReturn(true);
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         doNothing().when(comandaRepository).deleteById(1L);
 
         boolean resultado = service.deletar(1L);
 
         assertTrue(resultado);
+        assertEquals(0, produto.getQuantidadeReservada()); // Reservation restored
+        verify(produtoRepository).save(produto);
+        verify(comandaRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    void deletar_deveRetornarTrueSemRestaurarReservaQuandoComandaFechada() {
+        comanda.setStatus(Comanda.Status.FECHADA);
+        ComandaItem item = new ComandaItem();
+        item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(3);
+        produto.setQuantidadeReservada(0); // Already cleared at checkout
+        comanda.getItens().add(item);
+
+        when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        doNothing().when(comandaRepository).deleteById(1L);
+
+        boolean resultado = service.deletar(1L);
+
+        assertTrue(resultado);
+        assertEquals(0, produto.getQuantidadeReservada()); // No change for closed comanda
+        verify(produtoRepository, never()).save(any()); // Stock not touched
         verify(comandaRepository, times(1)).deleteById(1L);
     }
 
     @Test
     void deletar_deveRetornarFalseQuandoComandaNaoExiste() {
-        when(comandaRepository.existsById(99L)).thenReturn(false);
+        when(comandaRepository.findById(99L)).thenReturn(Optional.empty());
 
         boolean resultado = service.deletar(99L);
 
