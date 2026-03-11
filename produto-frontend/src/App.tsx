@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Package, X, Check, LogOut, Lock, Mail, User } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Pencil, Trash2, Package, X, Check, LogOut, Lock, Mail, User, Download, Upload, FileSpreadsheet, FileText } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -15,6 +15,13 @@ interface AuthUser {
   token: string;
   nome: string;
   email: string;
+}
+
+interface BatchResult {
+  linha: number;
+  acao: string;
+  status: string;
+  mensagem: string;
 }
 
 const emptyProduto: Produto = {
@@ -198,6 +205,11 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchResults, setBatchResults] = useState<BatchResult[] | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProdutos = useCallback(async () => {
     setLoading(true);
@@ -303,6 +315,60 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
     }).format(value);
   };
 
+  const handleExport = async (format: 'excel' | 'pdf') => {
+    setShowExportMenu(false);
+    try {
+      const res = await fetch(`${API_URL}/api/produtos/export/${format}`, {
+        headers: { 'Authorization': `Bearer ${user.token}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        onLogout();
+        return;
+      }
+      if (!res.ok) throw new Error('Erro ao exportar');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = format === 'excel' ? 'produtos.xlsx' : 'produtos.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('Erro ao exportar produtos');
+    }
+  };
+
+  const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBatchLoading(true);
+    setBatchResults(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_URL}/api/produtos/batch`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${user.token}` },
+        body: formData,
+      });
+      if (res.status === 401 || res.status === 403) {
+        onLogout();
+        return;
+      }
+      if (!res.ok) throw new Error('Erro ao processar arquivo');
+      const data: BatchResult[] = await res.json();
+      setBatchResults(data);
+      fetchProdutos();
+    } catch {
+      setError('Erro ao processar arquivo batch');
+    } finally {
+      setBatchLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -315,7 +381,7 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
               <p className="text-blue-200 text-sm">Olá, {user.nome}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
@@ -325,6 +391,42 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                 Novo Produto
               </button>
             )}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                title="Exportar"
+              >
+                <Download className="w-5 h-5" />
+                Exportar
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10">
+                  <button
+                    onClick={() => handleExport('excel')}
+                    className="flex items-center gap-2 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                    Exportar Excel (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => handleExport('pdf')}
+                    className="flex items-center gap-2 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg"
+                  >
+                    <FileText className="w-4 h-4 text-red-600" />
+                    Exportar PDF
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => { setShowBatchModal(true); setBatchResults(null); }}
+              className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+              title="Upload Batch"
+            >
+              <Upload className="w-5 h-5" />
+              Batch
+            </button>
             <button
               onClick={onLogout}
               className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
@@ -508,6 +610,86 @@ function ProductPage({ user, onLogout }: { user: AuthUser; onLogout: () => void 
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Batch Upload Modal */}
+        {showBatchModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b">
+                <h2 className="text-xl font-semibold text-gray-800">Cadastro Batch</h2>
+                <button onClick={() => setShowBatchModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Faça upload de um arquivo <strong>.xlsx</strong> ou <strong>.txt</strong> (separado por <code>;</code>) com as ações:
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono space-y-1">
+                    <p>CadastrarProduto;nome;descricao;preco;quantidade</p>
+                    <p>AlterarNome;nomeProduto;novoNome</p>
+                    <p>AlterarDescricao;nomeProduto;novaDescricao</p>
+                    <p>AlterarPreco;nomeProduto;novoPreco</p>
+                    <p>AlterarQuantidade;nomeProduto;novaQuantidade</p>
+                    <p>AlterarProduto;nomeProduto;coluna;valor</p>
+                    <p>SomarQuantidade;nomeProduto;valor</p>
+                    <p>SubtrairQuantidade;nomeProduto;valor</p>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.txt,.csv"
+                    onChange={handleBatchUpload}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
+                {batchLoading && (
+                  <div className="text-center py-4">
+                    <div className="inline-block w-6 h-6 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <p className="mt-2 text-sm text-gray-500">Processando arquivo...</p>
+                  </div>
+                )}
+                {batchResults && (
+                  <div className="mt-4">
+                    <h3 className="font-semibold text-gray-700 mb-2">Resultados:</h3>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-3 py-2 text-left">Linha</th>
+                            <th className="px-3 py-2 text-left">Ação</th>
+                            <th className="px-3 py-2 text-left">Status</th>
+                            <th className="px-3 py-2 text-left">Mensagem</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {batchResults.map((r, i) => (
+                            <tr key={i} className={r.status === 'OK' ? 'bg-green-50' : 'bg-red-50'}>
+                              <td className="px-3 py-2">{r.linha}</td>
+                              <td className="px-3 py-2 font-mono text-xs">{r.acao}</td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${r.status === 'OK' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-xs">{r.mensagem}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {batchResults.filter(r => r.status === 'OK').length} de {batchResults.length} ações executadas com sucesso.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
