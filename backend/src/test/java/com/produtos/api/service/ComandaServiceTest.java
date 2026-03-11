@@ -160,12 +160,14 @@ class ComandaServiceTest {
     void adicionarItem_deveAdicionarItemNaComanda() {
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
         when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
 
         Optional<Comanda> resultado = service.adicionarItem(1L, 1L, 2);
 
         assertTrue(resultado.isPresent());
         verify(comandaRepository).save(any(Comanda.class));
+        verify(produtoRepository).save(any(Produto.class)); // Stock reserved
     }
 
     @Test
@@ -179,12 +181,23 @@ class ComandaServiceTest {
 
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
         when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
 
         Optional<Comanda> resultado = service.adicionarItem(1L, 1L, 3);
 
         assertTrue(resultado.isPresent());
         assertEquals(4, itemExistente.getQuantidade()); // 1 + 3
+    }
+
+    @Test
+    void adicionarItem_deveLancarExcecaoQuandoEstoqueInsuficiente() {
+        produto.setQuantidade(2);
+        produto.setQuantidadeReservada(1);
+        when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+
+        assertThrows(IllegalStateException.class, () -> service.adicionarItem(1L, 1L, 5));
     }
 
     @Test
@@ -207,14 +220,19 @@ class ComandaServiceTest {
     void removerItem_deveRemoverItemDaComandaAberta() {
         ComandaItem item = new ComandaItem();
         item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(2);
+        produto.setQuantidadeReservada(2);
         comanda.getItens().add(item);
 
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
 
         Optional<Comanda> resultado = service.removerItem(1L, 1L, vendedor);
 
         assertTrue(resultado.isPresent());
+        assertEquals(0, produto.getQuantidadeReservada()); // Stock restored
     }
 
     @Test
@@ -234,6 +252,8 @@ class ComandaServiceTest {
         comanda.setStatus(Comanda.Status.FECHADA);
         ComandaItem item = new ComandaItem();
         item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(2);
         comanda.getItens().add(item);
 
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
@@ -242,6 +262,7 @@ class ComandaServiceTest {
         Optional<Comanda> resultado = service.removerItem(1L, 1L, gerente);
 
         assertTrue(resultado.isPresent());
+        // Stock not restored for closed comanda (already deducted at checkout)
     }
 
     @Test
@@ -271,7 +292,15 @@ class ComandaServiceTest {
 
     @Test
     void checkout_deveFazerCheckoutDeComandaAberta() {
+        ComandaItem item = new ComandaItem();
+        item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(3);
+        produto.setQuantidadeReservada(3);
+        comanda.getItens().add(item);
+
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
 
         Optional<Comanda> resultado = service.checkout(1L);
@@ -279,6 +308,8 @@ class ComandaServiceTest {
         assertTrue(resultado.isPresent());
         assertEquals(Comanda.Status.FECHADA, comanda.getStatus());
         assertNotNull(comanda.getDataCheckout());
+        assertEquals(7, produto.getQuantidade()); // 10 - 3
+        assertEquals(0, produto.getQuantidadeReservada()); // Reservation cleared
     }
 
     @Test
@@ -293,8 +324,16 @@ class ComandaServiceTest {
     void reabrir_deveReabrirComanda() {
         comanda.setStatus(Comanda.Status.FECHADA);
         comanda.setDataCheckout(LocalDateTime.now());
+        ComandaItem item = new ComandaItem();
+        item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(3);
+        produto.setQuantidade(7); // Already deducted at checkout
+        produto.setQuantidadeReservada(0);
+        comanda.getItens().add(item);
 
         when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+        when(produtoRepository.save(any(Produto.class))).thenReturn(produto);
         when(comandaRepository.save(any(Comanda.class))).thenReturn(comanda);
 
         Optional<Comanda> resultado = service.reabrir(1L);
@@ -302,6 +341,25 @@ class ComandaServiceTest {
         assertTrue(resultado.isPresent());
         assertEquals(Comanda.Status.ABERTA, comanda.getStatus());
         assertNull(comanda.getDataCheckout());
+        assertEquals(10, produto.getQuantidade()); // Stock restored: 7 + 3
+        assertEquals(3, produto.getQuantidadeReservada()); // Re-reserved
+    }
+
+    @Test
+    void reabrir_deveLancarExcecaoQuandoEstoqueInsuficiente() {
+        comanda.setStatus(Comanda.Status.FECHADA);
+        comanda.setDataCheckout(LocalDateTime.now());
+        ComandaItem item = new ComandaItem();
+        item.setId(1L);
+        item.setProduto(produto);
+        item.setQuantidade(15); // More than available
+        produto.setQuantidade(5);
+        produto.setQuantidadeReservada(3);
+        comanda.getItens().add(item);
+
+        when(comandaRepository.findById(1L)).thenReturn(Optional.of(comanda));
+
+        assertThrows(IllegalStateException.class, () -> service.reabrir(1L));
     }
 
     @Test
